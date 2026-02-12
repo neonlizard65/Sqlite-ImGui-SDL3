@@ -5,7 +5,7 @@ sqlite3* DatabaseConnection::context = nullptr;
 
 DatabaseConnection::DatabaseConnection()
 {
-    if (sqlite3_open("store.sqlite", &context)) {
+    if (sqlite3_open("store.db", &context)) {
         std::cerr << "Error open DB: " << sqlite3_errmsg(context) << std::endl;
     }
 }

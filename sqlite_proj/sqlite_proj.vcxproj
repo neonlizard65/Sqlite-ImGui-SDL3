@@ -129,12 +129,14 @@
   <ItemGroup>
     <ClCompile Include="DatabaseConnection.cpp" />
     <ClCompile Include="Product.cpp" />
+    <ClCompile Include="ProductForm.cpp" />
     <ClCompile Include="ProductView.cpp" />
     <ClCompile Include="sqlite_proj.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DatabaseConnection.h" />
     <ClInclude Include="Product.h" />
+    <ClInclude Include="ProductForm.h" />
     <ClInclude Include="ProductView.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
