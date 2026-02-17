@@ -4,16 +4,20 @@
 #include <algorithm>
 #include <string>
 #include <sqlite3.h>
-#include "SDL3/SDL.h"
-#include "SDL3/SDL_main.h"
-#include "SDL3_image/SDL_image.h"
-#include "imgui.h"
-#include "imgui_impl_sdl3.h"
-#include "imgui_impl_sdlrenderer3.h"
+#include <Windows.h>
+#include <clocale>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3_image/SDL_image.h>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_sdlrenderer3.h>
 #include "DatabaseConnection.h"
 #include "Product.h"
+#include "ProductController.h"
 #include "ProductView.h"
-#include "ProductForm.h"
+#include "GUIFonts.h"
+
 #pragma execution_character_set("utf-8") //C C++20 обязательно для кириллицы
 
 static SDL_Window* window = NULL;
@@ -22,17 +26,11 @@ static SDL_Renderer* renderer = NULL;
 static int windowWidth = 1920;
 static int windowHeight = 1080;
 
-ImFont* fontMain;
-DatabaseConnection db = DatabaseConnection();
-
 // Инициализация
 SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[])
 {
+    SetConsoleOutputCP(CP_UTF8); //Для отображения русского языка в консоли
     SDL_SetAppMetadata("myStore", "0.0.1", "com.mystore");
-
-
-    auto products = ProductView::getProducts();
-    ProductView::printProducts();
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
@@ -46,6 +44,9 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[])
 
     //??
     SDL_SetRenderLogicalPresentation(renderer, windowWidth, windowHeight, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+
+    auto products = Product::getProducts(renderer);
+    Product::printProducts();
 
     //ImGui
     IMGUI_CHECKVERSION(); //Проверка версии
@@ -69,21 +70,15 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[])
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; //Клавиатура
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  //Геймпад
 
-    //Очистить шрифты по умолчанию
-    io.Fonts->Clear();
-
     //Загрузите кастомный TTF файл
-    fontMain = io.Fonts->AddFontFromFileTTF("Leporid.ttf", 48.0f, nullptr, io.Fonts->GetGlyphRangesCyrillic()); // Шрифт, англ + русский, 48
+    io.Fonts->AddFontDefault();
+    GUIFonts::fontMain = io.Fonts->AddFontFromFileTTF("TTSans.ttf", 48.0f, nullptr, io.Fonts->GetGlyphRangesCyrillic()); // Шрифт, англ + русский, 48
+    GUIFonts::fontSecondary = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arial.ttf", 32.0f, nullptr, io.Fonts->GetGlyphRangesCyrillic()); // Шрифт, англ + русский, 48
 
     //Если не удалось загрузить - используем умолчанию
-    if (!fontMain) {
+    if (!GUIFonts::fontMain || !GUIFonts::fontSecondary) {
         std::cout << "Не удалось загрузить шрифт. Использую шрифт по умолчанию..." << std::endl;
-        fontMain = io.Fonts->AddFontDefault();
     }
-
-    //Установить основной шрифт
-    io.FontDefault = fontMain;
-
     // После добавления всех шрифтов, перед началом основного цикла:
     io.Fonts->Build(); // Перестраиваем атлас
     // Если используете SDL_Renderer, нужно заново создать текстуру:
@@ -95,6 +90,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[])
 //Цикл событий
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
 {
+    ImGui_ImplSDL3_ProcessEvent(event);
     if (event->type == SDL_EVENT_QUIT) {
         return SDL_APP_SUCCESS; //Успешное завершение программы
     }
@@ -111,6 +107,9 @@ SDL_AppResult SDL_AppIterate(void* appstate)
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.Colors[ImGuiCol_WindowBg] = GUIFonts::RGBtoImVec4(0, 48, 73, 255); // dark blue
+
     //Вставить сюда код для графического интерфейса ImGUI
     //Начинаем работать над окном ImGui
     static ImVec2 pos = ImVec2(0, 0); //Задаем позицию окна
@@ -122,7 +121,7 @@ SDL_AppResult SDL_AppIterate(void* appstate)
         ImGuiWindowFlags_NoMove |        // Запретить перемещение (ImGUI зафиксировано внутри окна SDL и перемещается с ним)
         ImGuiWindowFlags_NoResize);      // Пользователь не сможет поменять размер окна. 
 
-    ProductForm::Show();
+    ProductView::Show(renderer);
 
     //Завершение работы над окном
     ImGui::End();
@@ -142,8 +141,4 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result)
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
-
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
 }

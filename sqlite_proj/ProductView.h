@@ -1,14 +1,16 @@
 #pragma once
 #include <vector>
+#include <string>
+#include <SDL3/SDL.h>
 #include "Product.h"
+
 class ProductView
 {
 private:
-	static std::vector<Product> products;
-	static int callback(void* notUsed, int colCount, char** columns, char** colNames);
-	static std::vector<Product> getProductsQuery();
+	static SDL_Texture* placeholder;
+	static std::string pressedTag;
+	static void RenderProducts(SDL_Renderer* renderer, std::vector<Product> products);
 public:
-	static std::vector<Product> getProducts();
-	static void printProducts();
+	static void Show(SDL_Renderer* renderer);
 };
 

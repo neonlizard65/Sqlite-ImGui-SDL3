@@ -1,79 +1,106 @@
-#include <iostream>
-#include <sqlite3.h>
+#include <algorithm>
+#include <vector>
+#include <string>
+#include <imgui.h>
+#include <SDL3_image/SDL_image.h>
+#include "Product.h"
+#include "ProductController.h"
 #include "ProductView.h"
-#include "DatabaseConnection.h"
+#include "GUIFonts.h"
+#include <iterator>
 
-std::vector<Product> ProductView::products = std::vector<Product>();
+SDL_Texture* ProductView::placeholder = nullptr;
+std::string ProductView::pressedTag = "";
 
-int ProductView::callback(void* notUsed, int colCount, char** columns, char** colNames)
-{
-    std::string productName;
-    std::string tagName;
-
-    for (int i = 0; i < colCount; i++)
-    {
-
-        if (strcmp(colNames[i], "ProductName") == 0) {
-            productName = columns[i];
-        }
-        if (strcmp(colNames[i], "TagName") == 0) {
-            tagName = columns[i];
-        }
-    }
-
-    auto searchResult = std::find_if(ProductView::products.begin(), ProductView::products.end(), [&](const Product& product) {return product.name.c_str() == productName; });
-    if (searchResult == ProductView::products.end()) {
-        std::vector<std::string> tags;
-        tags.reserve(8);
-        tags.emplace_back(tagName);
-        ProductView::products.emplace_back(productName, tags);
-    }
-    else {
-        auto& product = *searchResult;
-        product.tags.emplace_back(tagName);
-    }
-
-    return 0;
+//Генерировать текст tag0, tag1, tag2... для того, чтобы у кнопок (тегов) были уникальные ID
+static void generateImGuiID(char* elementName, int elementNameSize, int elementCount) {
+	char elementID[10];
+	strcpy_s(elementName, elementNameSize, "tag");
+	sprintf_s(elementID, "%d", elementCount);
+	strcat_s(elementName, elementNameSize, elementID);
 }
 
-std::vector<Product> ProductView::getProductsQuery()
-{
-    std::string sql = "SELECT Product.Name AS ProductName, Product.Image AS ProductImage, Tag.Name AS TagName\
-        FROM Product\
-        INNER JOIN ProductTag ON Product.ID = ProductTag.ProductID\
-        INNER JOIN Tag ON Tag.ID = ProductTag.TagID";
+void ProductView::RenderProducts(SDL_Renderer* renderer, std::vector<Product> products) {
+	//Очистить выбранный тег
+	if (!pressedTag.empty()) {
+		ImGui::PushFont(GUIFonts::fontMain);
+		ImGui::Text("Selected tag: %s", pressedTag.c_str());
+		ImGui::PopFont();
+		ImGui::PushFont(GUIFonts::fontSecondary);
+		ImGui::PushStyleColor(ImGuiCol_Button, GUIFonts::RGBtoImVec4(214, 40, 40, 255));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, GUIFonts::RGBtoImVec4(247, 127, 0, 255));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, GUIFonts::RGBtoImVec4(252, 191, 73, 255));
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 14.0f);
+		if (ImGui::Button("Clear selected tag", ImVec2(300, 60))) {
+			pressedTag = "";
+		}
+		ImGui::PopStyleVar();
+		ImGui::PopStyleColor();
+		ImGui::PopStyleColor();
+		ImGui::PopStyleColor();
+		ImGui::PopFont();
+	}
+	//Счетчики для ID элементов
+	int imageCount = 0;
+	int tagCount = 0;
+	if (!ProductView::placeholder) {
+		ProductView::placeholder = IMG_LoadTexture(renderer, "./placeholder.png");
+	}
+	for (const auto& product : products)
+	{
+		ImGui::PushFont(GUIFonts::fontMain);
+		ImGui::TextColored(GUIFonts::RGBtoImVec4(255, 255, 255, 255), "%s", product.name.c_str());
+		ImGui::PopFont();
+		char imageIDText[16];
+		ImGui::PushID(imageIDText);
+		if (product.image) {
+			ImGui::Image((ImTextureID)(intptr_t)product.image, ImVec2(800, 450));
+		}
+		else {
+			ImGui::Image((ImTextureID)(intptr_t)placeholder, ImVec2(800, 450));
+		}
+		ImGui::PopID();
+		char tagIDText[14];
+		for (const auto& tag : product.tags)
+		{
+			generateImGuiID(tagIDText, 14, tagCount++); //4 для "tag\0" + 10 для числа
+			ImGui::PushFont(GUIFonts::fontSecondary);
+			ImGui::PushStyleColor(ImGuiCol_Button, GUIFonts::RGBtoImVec4(214, 40, 40, 255));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, GUIFonts::RGBtoImVec4(247, 127, 0, 255));
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive, GUIFonts::RGBtoImVec4(252, 191, 73, 255));
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 7.0f);
+			ImGui::PushID(tagIDText);
+			if (ImGui::Button(tag.c_str(), ImVec2(200, 40))) {
+				pressedTag = tag.c_str();
+			}
+			ImGui::SetItemTooltip("Press to filter items with this tag");
+			ImGui::PopID();
+			ImGui::PopStyleVar();
+			ImGui::PopStyleColor();
+			ImGui::PopStyleColor();
+			ImGui::PopStyleColor();
+			ImGui::SameLine();
+			ImGui::PopFont();
+		}
+		ImGui::NewLine();
+	}
 
-    char* messageError = nullptr;
-    int result = sqlite3_exec(DatabaseConnection::getContext(), sql.c_str(), ProductView::callback, 0, &messageError);
-
-    if (messageError != nullptr && result != SQLITE_OK) {
-        std::cerr << "Error during query" << *messageError << "\n";
-        sqlite3_free(messageError);
-    }
-
-    return products;
 }
 
-std::vector<Product> ProductView::getProducts()
+void ProductView::Show(SDL_Renderer *renderer)
 {
-    if (products.empty()) {
-        return ProductView::getProductsQuery();
-    }
-    return products;
-}
+	std::vector<Product> products = Product::getProducts(renderer);
+	if (pressedTag.empty()) {
+		ProductView::RenderProducts(renderer, products);
+	}
+	else {
+		std::vector<Product> result;
+		//Лямбда в лямбде - вкусно
+		auto productList = std::copy_if(products.begin(), products.end(), std::back_inserter(result), [](const Product& product) {
+			return std::find_if(product.tags.begin(), product.tags.end(), [](const std::string& tag) {
+				return tag == ProductView::pressedTag; }) != product.tags.end();
+			});
+		ProductView::RenderProducts(renderer, result);
+	}
 
-
-void ProductView::printProducts() {
-    if (ProductView::products.empty()) {
-        std::cout << "Empty product list passed\n";
-        return;
-    }
-    for (const auto& product : ProductView::products) {
-        std::cout << "Name: " << product.name << "\nTags:\n";
-
-        for (const auto& tag : product.tags) {
-            std::cout << "\t" << tag << "\n";
-        }
-    }
-    std::cout << "\n";
 }

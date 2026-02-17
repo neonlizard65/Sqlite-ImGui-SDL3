@@ -3,19 +3,24 @@
 
 sqlite3* DatabaseConnection::context = nullptr;
 
-DatabaseConnection::DatabaseConnection()
+void DatabaseConnection::initContext()
 {
-    if (sqlite3_open("store.db", &context)) {
+    if (sqlite3_open("store.db", &context) != SQLITE_OK) {
         std::cerr << "Error open DB: " << sqlite3_errmsg(context) << std::endl;
+        sqlite3_close(context);
     }
 }
 
-DatabaseConnection::~DatabaseConnection()
+void DatabaseConnection::clearContext()
 {
     sqlite3_close(context);
+    context = nullptr;
 }
 
 sqlite3* DatabaseConnection::getContext()
 {
-    return context ? context : nullptr;
+    if (context == nullptr) {
+        initContext();
+    }
+    return context;
 }
