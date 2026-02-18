@@ -3,5 +3,6 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Project Path="SetupMyStore/SetupMyStore.vdproj" Type="Installer" />
   <Project Path="sqlite_proj/sqlite_proj.vcxproj" Id="924bf281-d197-4c97-a236-48d769753a33" />
 </Solution>
